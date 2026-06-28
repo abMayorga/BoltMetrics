@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Environment variables (secrets)
+.env
+
+# Training outputs and base model downloads
+runs/
+*.pth
+*.onnx
+
+# YOLO dataset caches (regenerated during training)
+*.cache
+
+# Flask uploads (cleaned after each analysis)
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / tooling
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Dataset and test images
+dataset/
+test_images/
+
+# Misc
+*.log
+*.egg-info/
+dist/
+build/
