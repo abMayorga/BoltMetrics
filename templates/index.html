@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>BoltMetrics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <div class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-glow hero-glow-2"></div>
+    <div class="hero-inner">
+      <h1 class="hero-title">BoltMetrics</h1>
+      <p class="hero-sub">Identify any bolt from a photo</p>
+      <div class="hero-pills">
+        <span class="pill">Metric &amp; Imperial</span>
+        <span class="pill pill-alt">Camera Ready</span>
+        <span class="pill">Instant Results</span>
+      </div>
+    </div>
+  </div>
+
+  <main class="main">
+
+    <section class="upload-section">
+      <div class="card upload-card">
+        <form method="POST" enctype="multipart/form-data" id="upload-form">
+          <label class="drop-zone" id="drop-zone">
+            <input type="file" name="bolt_image" id="file-input" accept="image/jpeg,image/png,image/gif" required hidden>
+            <div class="drop-content" id="drop-content">
+              <div class="drop-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              </div>
+              <p class="drop-text">Drop a photo or tap to browse</p>
+              <p class="drop-hint">Include a US quarter next to the bolt for scale</p>
+            </div>
+            <img id="preview-img" class="preview-img hidden" alt="Upload preview"/>
+          </label>
+
+          <div class="input-row">
+            <button type="button" class="btn-camera" id="camera-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              <span>Camera</span>
+            </button>
+            <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+
+            <div class="unit-toggle">
+              <div class="toggle-group">
+                <input type="radio" name="unit_system" id="unit-metric" value="metric" checked>
+                <label for="unit-metric" class="toggle-option">Metric</label>
+                <input type="radio" name="unit_system" id="unit-imperial" value="imperial">
+                <label for="unit-imperial" class="toggle-option">Imperial</label>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-analyze" id="submit-btn">
+            <span id="btn-text">Analyze</span>
+            <span id="btn-spinner" class="spinner hidden"></span>
+          </button>
+        </form>
+      </div>
+
+      <div class="steps-row">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-text">Place a quarter<br>next to the bolt</div>
+        </div>
+        <div class="step-arrow">&rarr;</div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-text">Snap a photo<br>or upload one</div>
+        </div>
+        <div class="step-arrow">&rarr;</div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-text">Get type, size<br>&amp; specs instantly</div>
+        </div>
+      </div>
+    </section>
+
+    {% if result %}
+    <section class="card result-card">
+
+      {% if result.get('error') %}
+      <div class="result-state error">
+        <h3>{{ result.error }}</h3>
+      </div>
+
+      {% elif not result.get('bolt') and not result.get('quarter') %}
+      <div class="result-state empty">
+        <h3>Nothing Detected</h3>
+        <p>No bolt or quarter found. Try better lighting or a closer angle.</p>
+      </div>
+
+      {% elif result.get('bolt') and not result.get('quarter') %}
+      <div class="result-state warn">
+        <h3>Bolt Found &mdash; Missing Quarter</h3>
+        <p>Add a US quarter next to the bolt so we can measure it.</p>
+        {% if result.get('bolt_confidence') %}
+        <p class="confidence-note">{{ result.bolt_confidence }}% confidence</p>
+        {% endif %}
+      </div>
+
+      {% elif not result.get('bolt') and result.get('quarter') %}
+      <div class="result-state warn">
+        <h3>Quarter Found &mdash; No Bolt</h3>
+        <p>Make sure a bolt is visible in the photo.</p>
+      </div>
+
+      {% else %}
+      <div class="result-success">
+        <div class="result-header">
+          <div class="result-badge">{{ 'No Match' if result.bolt_type == 'Unknown' else 'Match' }}</div>
+          <h3 class="bolt-type">{{ result.bolt_type }}</h3>
+          {% if result.get('bolt_confidence') %}
+          <span class="confidence-pill {% if result.bolt_confidence >= 80 %}conf-high{% elif result.bolt_confidence >= 50 %}conf-mid{% else %}conf-low{% endif %}">{{ result.bolt_confidence }}%</span>
+          {% endif %}
+        </div>
+
+        {% if result.get('bolts_detected', 0) > 1 %}
+        <div class="multi-bolt-notice">
+          {{ result.bolts_detected }} bolts detected &mdash; showing best match.
+        </div>
+        {% endif %}
+
+        {% if result.get('annotated_image') %}
+        <div class="annotated-container">
+          <img src="data:image/jpeg;base64,{{ result.annotated_image }}" alt="Annotated detection" class="annotated-img"/>
+        </div>
+        {% endif %}
+
+        <div class="metrics-grid">
+          <div class="metric highlight">
+            <span class="metric-label">Bolt Type</span>
+            <span class="metric-value">{{ result.bolt_type }}</span>
+            <span class="metric-unit">{{ result.unit_system }}</span>
+          </div>
+
+          {% if result.unit_system == 'imperial' %}
+          <div class="metric">
+            <span class="metric-label">Width</span>
+            <span class="metric-value">{{ result.bolt_width_in }}</span>
+            <span class="metric-unit">in</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Length</span>
+            <span class="metric-value">{{ result.bolt_length_in }}</span>
+            <span class="metric-unit">in</span>
+          </div>
+          <div class="metric highlight">
+            <span class="metric-label">Wrench</span>
+            <span class="metric-value">{{ result.wrench_size_in if result.wrench_size_in is not none else '—' }}</span>
+            <span class="metric-unit">in across flats</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Shank</span>
+            <span class="metric-value">{{ result.shank_diameter_in if result.shank_diameter_in is not none else '—' }}</span>
+            <span class="metric-unit">in nominal</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Thread</span>
+            <span class="metric-value">{{ result.tpi if result.tpi is not none else '—' }}</span>
+            <span class="metric-unit">TPI coarse</span>
+          </div>
+          {% else %}
+          <div class="metric">
+            <span class="metric-label">Width</span>
+            <span class="metric-value">{{ result.bolt_width_mm }}</span>
+            <span class="metric-unit">mm</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Length</span>
+            <span class="metric-value">{{ result.bolt_length_mm }}</span>
+            <span class="metric-unit">mm</span>
+          </div>
+          <div class="metric highlight">
+            <span class="metric-label">Wrench</span>
+            <span class="metric-value">{{ result.wrench_size_mm if result.wrench_size_mm is not none else '—' }}</span>
+            <span class="metric-unit">mm across flats</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Shank</span>
+            <span class="metric-value">{{ result.shank_diameter_mm if result.shank_diameter_mm is not none else '—' }}</span>
+            <span class="metric-unit">mm nominal</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Thread</span>
+            <span class="metric-value">{{ result.thread_pitch_mm if result.thread_pitch_mm is not none else '—' }}</span>
+            <span class="metric-unit">mm pitch</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <p class="result-note">Sized against a US quarter (24.26 mm)</p>
+      </div>
+      {% endif %}
+
+    </section>
+    {% endif %}
+
+  </main>
+
+  <footer class="site-footer">
+    <span class="footer-brand">BoltMetrics</span>
+    <span class="footer-sep">&bull;</span>
+    <span>Snap it. Size it. Spec it.</span>
+  </footer>
+
+  <script>
+    var fileInput   = document.getElementById('file-input');
+    var cameraInput = document.getElementById('camera-input');
+    var cameraBtn   = document.getElementById('camera-btn');
+    var dropZone    = document.getElementById('drop-zone');
+    var dropContent = document.getElementById('drop-content');
+    var previewImg  = document.getElementById('preview-img');
+    var form        = document.getElementById('upload-form');
+    var btnText     = document.getElementById('btn-text');
+    var spinner     = document.getElementById('btn-spinner');
+
+    function showPreview(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        previewImg.src = e.target.result;
+        previewImg.classList.remove('hidden');
+        dropContent.classList.add('hidden');
+        dropZone.classList.add('has-file');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function setFile(file) {
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+      showPreview(file);
+    }
+
+    fileInput.addEventListener('change', function() {
+      if (fileInput.files.length > 0) showPreview(fileInput.files[0]);
+    });
+
+    cameraBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      cameraInput.click();
+    });
+
+    cameraInput.addEventListener('change', function() {
+      if (cameraInput.files.length > 0) setFile(cameraInput.files[0]);
+    });
+
+    dropZone.addEventListener('click', function(e) {
+      if (e.target === previewImg || previewImg.contains(e.target)) {
+        e.preventDefault();
+        fileInput.value = '';
+        fileInput.click();
+      }
+    });
+
+    form.addEventListener('submit', function() {
+      document.getElementById('submit-btn').disabled = true;
+      btnText.textContent = 'Analyzing…';
+      spinner.classList.remove('hidden');
+    });
+
+    dropZone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', function() {
+      dropZone.classList.remove('drag-over');
+    });
+    dropZone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      var file = e.dataTransfer.files[0];
+      if (file) setFile(file);
+    });
+  </script>
+
+</body>
+</html>
