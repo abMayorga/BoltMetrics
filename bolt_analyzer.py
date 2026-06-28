@@ -64,10 +64,33 @@ def find_latest_model(base_dir):
     return max(candidates, key=os.path.getmtime)
 
 
-def compute_scale(quarter_box):
-    """Compute mm-per-pixel scale using the known quarter diameter."""
-    x1, y1, x2, y2 = quarter_box
-    pixel_diameter = max(x2 - x1, y2 - y1)
+def compute_scale(quarter_box, image):
+    """Compute mm-per-pixel scale using the known quarter diameter.
+    Uses HoughCircles to detect the circular edge for precision,
+    falls back to bounding-box average."""
+    x1, y1, x2, y2 = map(int, quarter_box)
+    h, w = image.shape[:2]
+    crop = image[max(0, y1):min(h, y2), max(0, x1):min(w, x2)]
+
+    pixel_diameter = None
+
+    if crop.size > 0:
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        crop_h, crop_w = crop.shape[:2]
+        circles = cv2.HoughCircles(
+            blurred, cv2.HOUGH_GRADIENT, dp=1.2,
+            minDist=max(crop_h, crop_w),
+            param1=100, param2=30,
+            minRadius=int(min(crop_h, crop_w) * 0.3),
+            maxRadius=int(max(crop_h, crop_w) * 0.55),
+        )
+        if circles is not None:
+            pixel_diameter = float(circles[0][0][2]) * 2
+
+    if pixel_diameter is None or pixel_diameter <= 0:
+        pixel_diameter = ((x2 - x1) + (y2 - y1)) / 2
+
     if pixel_diameter <= 0:
         raise ValueError("Quarter bounding box has zero size.")
     return QUARTER_DIAMETER_MM / pixel_diameter
@@ -78,13 +101,12 @@ def estimate_bolt_dimensions(bolt_box, scale_mm_per_px, image):
     and picks the result whose contour best fills the bounding box.
     Short axis -> width, long axis -> length. """
     x1, y1, x2, y2 = map(int, bolt_box)
-    pad = 10
+    bb_w = x2 - x1
+    bb_h = y2 - y1
+    pad = max(5, int(min(bb_w, bb_h) * 0.05))
     h, w = image.shape[:2]
     cx1, cy1 = max(0, x1 - pad), max(0, y1 - pad)
     cx2, cy2 = min(w, x2 + pad), min(h, y2 + pad)
-
-    bb_w = x2 - x1
-    bb_h = y2 - y1
     bb_short = min(bb_w, bb_h)
     bb_long = max(bb_w, bb_h)
     bb_area = bb_w * bb_h
@@ -169,14 +191,36 @@ def estimate_bolt_dimensions(bolt_box, scale_mm_per_px, image):
 
 
 def classify_bolt(width_mm, unit_system="metric"):
-    """Match measured width to the closest bolt by hex head size (across-flats)."""
-    
+    """Match measured width to the closest bolt by hex head size (across-flats).
+    Returns 'Unknown' if the best match is more than 20% off."""
+
     if unit_system == "imperial":
-        best_match = min(
-            SAE_BOLT_SPECS.items(),
-            key=lambda kv: abs(kv[1]["wrench"] - width_mm),
-        )
-        name, specs = best_match
+        specs_table = SAE_BOLT_SPECS
+    else:
+        specs_table = METRIC_BOLT_SPECS
+
+    name, specs = min(
+        specs_table.items(),
+        key=lambda kv: abs(kv[1]["wrench"] - width_mm),
+    )
+
+    tolerance = specs["wrench"] * 0.20
+    if abs(specs["wrench"] - width_mm) > tolerance:
+        result = {
+            "bolt_type": "Unknown",
+            "unit_system": unit_system,
+            "shank_diameter_mm": None,
+            "wrench_size_mm": round(width_mm, 2),
+        }
+        if unit_system == "imperial":
+            result["shank_diameter_in"] = None
+            result["wrench_size_in"] = round(width_mm / MM_PER_INCH, 4)
+            result["tpi"] = None
+        else:
+            result["thread_pitch_mm"] = None
+        return result
+
+    if unit_system == "imperial":
         return {
             "bolt_type": name,
             "unit_system": "imperial",
@@ -187,11 +231,6 @@ def classify_bolt(width_mm, unit_system="metric"):
             "tpi": specs["tpi"],
         }
 
-    best_match = min(
-        METRIC_BOLT_SPECS.items(),
-        key=lambda kv: abs(kv[1]["wrench"] - width_mm),
-    )
-    name, specs = best_match
     return {
         "bolt_type": name,
         "unit_system": "metric",
@@ -299,7 +338,7 @@ class BoltAnalyzer:
         }
 
         if bolt_box is not None and quarter_box is not None:
-            scale = compute_scale(quarter_box)
+            scale = compute_scale(quarter_box, image)
             width_mm, length_mm = estimate_bolt_dimensions(bolt_box, scale, image)
             classification = classify_bolt(width_mm, unit_system)
 
