@@ -376,26 +376,37 @@ class BoltAnalyzer:
 
 
 class RoboflowAnalyzer:
-    """Detects a bolt and a US quarter via the Roboflow Workflows API."""
+    """Detects a bolt and a US quarter via the Roboflow inference SDK."""
 
-    def __init__(self, api_key, workflow_url, min_confidence=0.25):
-        self.api_key = api_key
-        self.workflow_url = workflow_url
+    def __init__(self, api_key, workspace, workflow_id, min_confidence=0.25):
+        from inference_sdk import InferenceHTTPClient
+        self.client = InferenceHTTPClient(
+            api_url="https://serverless.roboflow.com",
+            api_key=api_key,
+        )
+        self.workspace = workspace
+        self.workflow_id = workflow_id
         self.min_confidence = float(min_confidence)
-        logger.info(f"Roboflow analyzer ready. workflow={workflow_url}")
+        logger.info(f"Roboflow analyzer ready. workspace={workspace} workflow={workflow_id}")
 
-    def _extract_predictions(self, data):
-        """Extract predictions list from the Roboflow API response."""
-        if "predictions" in data and isinstance(data["predictions"], list):
-            return data["predictions"]
-        outputs = data.get("outputs", [])
-        if not outputs:
+    def _extract_predictions(self, results):
+        """Extract predictions list from the workflow response."""
+        if not results:
             return []
-        output = outputs[0] if isinstance(outputs, list) else outputs
-        preds = output.get("predictions", output.get("result", []))
-        if isinstance(preds, dict):
-            preds = preds.get("predictions", [])
-        return preds if isinstance(preds, list) else []
+        if isinstance(results, list):
+            for item in results:
+                if isinstance(item, dict):
+                    preds = item.get("predictions", [])
+                    if isinstance(preds, list) and preds:
+                        return preds
+                    if isinstance(preds, dict):
+                        inner = preds.get("predictions", [])
+                        if isinstance(inner, list) and inner:
+                            return inner
+        if isinstance(results, dict):
+            if "predictions" in results:
+                return results["predictions"]
+        return []
 
     def detect_objects(self, img_path, unit_system="metric"):
         if not os.path.isfile(img_path):
@@ -405,30 +416,19 @@ class RoboflowAnalyzer:
         if image is None:
             return {"bolt": False, "quarter": False}
 
-        with open(img_path, "rb") as f:
-            img_bytes = f.read()
-        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
-
-        payload = {
-            "api_key": self.api_key,
-            "inputs": {
-                "image": {"type": "base64", "value": img_b64},
-            },
-        }
-
         try:
-            resp = requests.post(
-                self.workflow_url, json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=30,
+            results = self.client.run_workflow(
+                workspace_name=self.workspace,
+                workflow_id=self.workflow_id,
+                images={"image": img_path},
+                use_cache=True,
             )
-            resp.raise_for_status()
-            data = resp.json()
-        except requests.RequestException as e:
+            logger.info(f"Roboflow response: {str(results)[:500]}")
+        except Exception as e:
             logger.error(f"Roboflow API error: {e}")
             return {"bolt": False, "quarter": False}
 
-        predictions = self._extract_predictions(data)
+        predictions = self._extract_predictions(results)
         if not predictions:
             return {"bolt": False, "quarter": False}
 
