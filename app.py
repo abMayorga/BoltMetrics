@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 
-from bolt_analyzer import BoltAnalyzer, find_latest_model
+from bolt_analyzer import BoltAnalyzer, RoboflowAnalyzer, find_latest_model
 
 load_dotenv()
 
@@ -20,20 +20,26 @@ MAX_UPLOAD_MB = 16
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 
-MODEL_PATH = os.environ.get("MODEL_PATH") or find_latest_model(BASE_DIR)
+ROBOFLOW_API_KEY = os.environ.get("ROBOFLOW_API_KEY")
+ROBOFLOW_WORKFLOW_URL = os.environ.get("ROBOFLOW_WORKFLOW_URL")
 
-if MODEL_PATH:
-    try:
-        analyzer = BoltAnalyzer(MODEL_PATH, min_confidence=0.25)
-        print(f"Model loaded: {MODEL_PATH}")
-    except FileNotFoundError:
-        analyzer = None
-        print(f"[WARNING] Model not found at: {MODEL_PATH}")
-        print("Run: python scripts/train.py")
+if ROBOFLOW_API_KEY and ROBOFLOW_WORKFLOW_URL:
+    analyzer = RoboflowAnalyzer(ROBOFLOW_API_KEY, ROBOFLOW_WORKFLOW_URL, min_confidence=0.25)
+    print(f"Using Roboflow API: {ROBOFLOW_WORKFLOW_URL}")
 else:
-    analyzer = None
-    print("[WARNING] No trained model found in runs/detect/")
-    print("Run: python scripts/train.py")
+    MODEL_PATH = os.environ.get("MODEL_PATH") or find_latest_model(BASE_DIR)
+    if MODEL_PATH:
+        try:
+            analyzer = BoltAnalyzer(MODEL_PATH, min_confidence=0.25)
+            print(f"Local model loaded: {MODEL_PATH}")
+        except FileNotFoundError:
+            analyzer = None
+            print(f"[WARNING] Model not found at: {MODEL_PATH}")
+            print("Run: python scripts/train.py")
+    else:
+        analyzer = None
+        print("[WARNING] No trained model found in runs/detect/")
+        print("Run: python scripts/train.py")
 
 
 def allowed_file(filename):
