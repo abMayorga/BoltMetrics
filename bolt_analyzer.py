@@ -4,7 +4,12 @@ import logging
 import os
 
 import numpy as np
-from ultralytics import YOLO
+import requests
+
+try:
+    from ultralytics import YOLO
+except ImportError:
+    YOLO = None
 
 QUARTER_DIAMETER_MM = 24.26
 
@@ -323,6 +328,130 @@ class BoltAnalyzer:
                 if best_bolt is None or conf > best_bolt[0]:
                     best_bolt = (float(conf), box)
             elif int(cid) == self._quarter_id:
+                if best_quarter is None or conf > best_quarter[0]:
+                    best_quarter = (float(conf), box)
+
+        bolt_box = best_bolt[1] if best_bolt else None
+        quarter_box = best_quarter[1] if best_quarter else None
+
+        result = {
+            "bolt": bolt_box is not None,
+            "quarter": quarter_box is not None,
+            "bolt_confidence": round(best_bolt[0] * 100, 1) if best_bolt else None,
+            "quarter_confidence": round(best_quarter[0] * 100, 1) if best_quarter else None,
+            "bolts_detected": bolt_count,
+        }
+
+        if bolt_box is not None and quarter_box is not None:
+            scale = compute_scale(quarter_box, image)
+            width_mm, length_mm = estimate_bolt_dimensions(bolt_box, scale, image)
+            classification = classify_bolt(width_mm, unit_system)
+
+            result.update({
+                "bolt_type": classification["bolt_type"],
+                "unit_system": classification["unit_system"],
+                "bolt_width_mm": round(width_mm, 2),
+                "bolt_length_mm": round(length_mm, 2),
+                "wrench_size_mm": classification["wrench_size_mm"],
+                "shank_diameter_mm": classification["shank_diameter_mm"],
+            })
+
+            if unit_system == "imperial":
+                result.update({
+                    "bolt_width_in": round(width_mm / MM_PER_INCH, 3),
+                    "bolt_length_in": round(length_mm / MM_PER_INCH, 3),
+                    "wrench_size_in": classification["wrench_size_in"],
+                    "shank_diameter_in": classification["shank_diameter_in"],
+                    "tpi": classification["tpi"],
+                })
+            else:
+                result["thread_pitch_mm"] = classification["thread_pitch_mm"]
+
+        bolt_info = result if bolt_box and quarter_box else None
+        result["annotated_image"] = generate_annotated_image(
+            image, bolt_box, quarter_box, bolt_info
+        )
+
+        return result
+
+
+class RoboflowAnalyzer:
+    """Detects a bolt and a US quarter via the Roboflow Workflows API."""
+
+    def __init__(self, api_key, workflow_url, min_confidence=0.25):
+        self.api_key = api_key
+        self.workflow_url = workflow_url
+        self.min_confidence = float(min_confidence)
+        logger.info(f"Roboflow analyzer ready. workflow={workflow_url}")
+
+    def _extract_predictions(self, data):
+        """Extract predictions list from the Workflows API response."""
+        outputs = data.get("outputs", [])
+        if not outputs:
+            return []
+        output = outputs[0] if isinstance(outputs, list) else outputs
+        preds = output.get("predictions", output.get("result", []))
+        if isinstance(preds, dict):
+            preds = preds.get("predictions", [])
+        return preds if isinstance(preds, list) else []
+
+    def detect_objects(self, img_path, unit_system="metric"):
+        if not os.path.isfile(img_path):
+            return {"bolt": False, "quarter": False}
+
+        image = cv2.imread(img_path)
+        if image is None:
+            return {"bolt": False, "quarter": False}
+
+        with open(img_path, "rb") as f:
+            img_bytes = f.read()
+        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+
+        payload = {
+            "api_key": self.api_key,
+            "inputs": {
+                "image": {"type": "base64", "value": img_b64},
+            },
+        }
+
+        try:
+            resp = requests.post(
+                self.workflow_url, json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException as e:
+            logger.error(f"Roboflow API error: {e}")
+            return {"bolt": False, "quarter": False}
+
+        predictions = self._extract_predictions(data)
+        if not predictions:
+            return {"bolt": False, "quarter": False}
+
+        best_bolt = None
+        best_quarter = None
+        bolt_count = 0
+
+        for pred in predictions:
+            cx = pred["x"]
+            cy = pred["y"]
+            pw = pred["width"]
+            ph = pred["height"]
+            x1 = cx - pw / 2
+            y1 = cy - ph / 2
+            x2 = cx + pw / 2
+            y2 = cy + ph / 2
+            box = (float(x1), float(y1), float(x2), float(y2))
+            conf = pred["confidence"]
+            cls = pred["class"].lower()
+
+            if cls == "bolt":
+                bolt_count += 1
+                if best_bolt is None or conf > best_bolt[0]:
+                    best_bolt = (float(conf), box)
+            elif cls == "quarter":
                 if best_quarter is None or conf > best_quarter[0]:
                     best_quarter = (float(conf), box)
 
