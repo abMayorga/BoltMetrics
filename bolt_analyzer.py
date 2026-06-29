@@ -385,7 +385,9 @@ class RoboflowAnalyzer:
         logger.info(f"Roboflow analyzer ready. workflow={workflow_url}")
 
     def _extract_predictions(self, data):
-        """Extract predictions list from the Workflows API response."""
+        """Extract predictions list from the Roboflow API response."""
+        if "predictions" in data and isinstance(data["predictions"], list):
+            return data["predictions"]
         outputs = data.get("outputs", [])
         if not outputs:
             return []
