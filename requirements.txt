@@ -3,5 +3,6 @@ ultralytics>=8.4,<9.0
 opencv-python-headless>=4.10,<5.0
 numpy>=2.0,<3.0
 python-dotenv>=1.0,<2.0
+requests>=2.31,<3.0
 # guni only utilized in production, not needed for local development
 gunicorn>=23.0,<24.0
