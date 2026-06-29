@@ -14,8 +14,9 @@ ENV/
 # Environment variables (secrets)
 .env
 
-# Training outputs and base model downloads
+# Training outputs and model weights
 runs/
+model/*.pt
 *.pth
 *.onnx
 
