@@ -70,6 +70,8 @@ def index():
                 unit_system = "metric"
             try:
                 result = analyzer.detect_objects(path, unit_system=unit_system)
+                if result.get("service_error"):
+                    result = {"error": "Detection service is temporarily unavailable. Please try again in a moment."}
             except Exception as e:
                 result = {"error": f"Analysis failed: {e}"}
             finally:

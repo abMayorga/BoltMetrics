@@ -425,7 +425,7 @@ class RoboflowAnalyzer:
             logger.info(f"Roboflow response: {str(results)[:500]}")
         except Exception as e:
             logger.error(f"Roboflow API error: {e}")
-            return {"bolt": False, "quarter": False}
+            return {"bolt": False, "quarter": False, "service_error": True}
 
         predictions = self._extract_predictions(results)
         if not predictions:
