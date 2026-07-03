@@ -6,7 +6,7 @@
   <title>BoltMetrics</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Sans:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -19,7 +19,7 @@
       <p class="hero-sub">Identify any bolt from a photo</p>
       <div class="hero-pills">
         <span class="pill">Metric &amp; Imperial</span>
-        <span class="pill pill-alt">Camera Ready</span>
+        <span class="pill">Camera Ready</span>
         <span class="pill">Instant Results</span>
       </div>
     </div>
@@ -161,9 +161,9 @@
             <span class="metric-unit">in</span>
           </div>
           <div class="metric highlight">
-            <span class="metric-label">Wrench</span>
+            <span class="metric-label">Wrench/Socket Size</span>
             <span class="metric-value">{{ result.wrench_size_in if result.wrench_size_in is not none else '—' }}</span>
-            <span class="metric-unit">in across flats</span>
+            <span class="metric-unit">in</span>
           </div>
           <div class="metric">
             <span class="metric-label">Shank</span>
@@ -187,9 +187,9 @@
             <span class="metric-unit">mm</span>
           </div>
           <div class="metric highlight">
-            <span class="metric-label">Wrench</span>
+            <span class="metric-label">Wrench/Socket Size</span>
             <span class="metric-value">{{ result.wrench_size_mm if result.wrench_size_mm is not none else '—' }}</span>
-            <span class="metric-unit">mm across flats</span>
+            <span class="metric-unit">mm</span>
           </div>
           <div class="metric">
             <span class="metric-label">Shank</span>
