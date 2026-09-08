@@ -4,5 +4,6 @@ opencv-python-headless>=4.10,<5.0
 numpy>=2.0,<3.0
 python-dotenv>=1.0,<2.0
 requests>=2.31,<3.0
-# guni only utilized in production, not needed for local development
+inference-sdk>=0.30,<2.0
+# Gunicorn is used in production, not for the local development server.
 gunicorn>=23.0,<24.0
