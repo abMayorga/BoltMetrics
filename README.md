@@ -5,8 +5,10 @@ Identify bolts from a photo w/ a US quarter for scale. BoltMetrics detects both 
 
 Built with YOLO11 + OpenCV. Trained on a custom dataset via [Roboflow](https://universe.roboflow.com/boltmetrics/detect-and-classify-object-detection-qxref).
 
+> BoltMetrics estimates size from a photograph; it is not a calibrated inspection instrument. For best results, place one bolt and one quarter flat on the same surface and photograph them directly overhead.
 
-## SetupSteps
+
+## Setup
 
 A trained model (`model/best.pt`) is included in the repo, no training needed
 
@@ -26,26 +28,33 @@ python bolt_analyzer.py --image test_images/bqm10.jpg
 
 ## Environment Variables
 
-Create a `.env` file in the project root for production. For local dev, this is optional — defaults work fine.
+Create a `.env` file in the project root for production. For local development this is optional.
 
-signs browser session cookies so they can't be tampered with. Generate one
+`FLASK_SECRET_KEY` signs browser session cookies so they cannot be tampered with. Generate one:
 
 ```bash
 python -c "import os; print(os.urandom(32).hex())"
 ```
 
+- `FLASK_SECRET_KEY` — stable random secret used to sign Flask session cookies
 - `FLASK_DEBUG` — set to `1` during development for auto-reload when you edit code. **Never set to `1` in production**
+- `ANALYZER_BACKEND` — `local`, `roboflow`, or `auto` (default). Auto uses Roboflow when all three Roboflow settings exist, otherwise local weights
+- `ROBOFLOW_API_KEY` — required for the Roboflow backend
+- `ROBOFLOW_WORKSPACE` — Roboflow workspace slug
+- `ROBOFLOW_WORKFLOW_ID` — deployed Workflow ID
+- `MODEL_PATH` — optional local `.pt` path override
 
 ## How It Works
 
 1. **Detection** — YOLO11 locates the bolt and quarter in the image
-2. **Scale** — The quarter's known diameter (24.26 mm) sets a pixel-to-mm ratio
-3. **Measurement** — Multiple segmentation measure the bolt's width and length
-4. **Classification** — Width is matched to the nearest standard hex head size (metric or imperial)
+2. **Scale** — The quarter's known diameter (24.26 mm) sets a direction-aware pixel-to-mm calibration; its ellipse also estimates modest camera tilt
+3. **Measurement** — OpenCV builds a silhouette-width profile, measuring shank diameter and length from under the head to the tip
+4. **Classification** — Shank diameter is matched to metric or imperial reference sizes. Wrench size and common coarse pitch/TPI are table lookups, not directly measured
 
 ## Project Layout
 
-| File | Corresponding Purpose 
+| File | Corresponding Purpose |
+|---|---|
 | `app.py` | Web server — handles uploads, calls the analyzer, renders results |
 | `bolt_analyzer.py` | Core logic — detection, measurement, classification |
 | `scripts/train.py` | Retrains the model on updated datasets |
