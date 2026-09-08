@@ -307,7 +307,12 @@ body {
   border-radius: 10px;
   overflow: hidden;
 }
-.toggle-group input[type="radio"] { display: none; }
+.toggle-group input[type="radio"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
 .toggle-option {
   flex: 1;
   text-align: center;
@@ -321,6 +326,11 @@ body {
 .toggle-group input[type="radio"]:checked + .toggle-option {
   background: var(--accent);
   color: var(--accent-text);
+}
+.toggle-group input[type="radio"]:focus-visible + .toggle-option,
+.drop-zone:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
 }
 
 /* ── Submit button ── */
@@ -387,6 +397,15 @@ body {
   border-radius: 10px;
   padding: 0.6rem 1rem;
   text-align: center;
+}
+
+.measurement-warning {
+  font-size: 0.82rem;
+  color: var(--warn-text);
+  background: var(--warn-bg);
+  border-left: 3px solid var(--warn-border);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
 }
 
 /* ── Success result ── */
